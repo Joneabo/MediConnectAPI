@@ -1,0 +1,4 @@
+{
+    "appService.defaultWebAppToDeploy": "/subscriptions/60444816-43ba-40d4-977b-4dfcd23bdaad/resourceGroups/DevTest/providers/Microsoft.Web/sites/MediConnectAPI",
+    "appService.deploySubpath": "bin\\Release\\net9.0\\publish"
+}

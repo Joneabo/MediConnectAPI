@@ -1,6 +1,6 @@
 using MediConnectAPI.Models;
 
-namespace MyApp.Services
+namespace MediConnectAPI.Services
 {
     public interface IAuthService
     {

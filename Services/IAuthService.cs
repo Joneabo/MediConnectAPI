@@ -7,5 +7,8 @@ namespace MediConnectAPI.Services
         Task<Usuario?> GetByEmailAsync(string email);
         bool VerifyPassword(string password, string passwordHash);
         string GenerateJwtToken(Usuario usuario);
+
+        Task<(bool Success, string Message)> RegisterAsync(RegisterRequest request);
+
     }
 }

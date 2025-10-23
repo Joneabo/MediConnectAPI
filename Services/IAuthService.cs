@@ -4,8 +4,8 @@ namespace MediConnectAPI.Services
 {
     public interface IAuthService
     {
-        User? GetByEmail(string email);
+        Task<Usuario?> GetByEmailAsync(string email);
         bool VerifyPassword(string password, string passwordHash);
-        string GenerateJwtToken(User user);
+        string GenerateJwtToken(Usuario usuario);
     }
 }

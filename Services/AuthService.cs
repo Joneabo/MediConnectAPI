@@ -67,3 +67,36 @@ namespace MediConnectAPI.Services
         }
     }
 }
+
+
+public async Task<(bool Success, string Message)> RegisterAsync(RegisterRequest request)
+{
+    // Verificar si el usuario ya existe
+    var existingUser = await _context.Usuarios
+        .AnyAsync(u => u.Email.ToLower() == request.Email.ToLower());
+    if (existingUser)
+        return (false, "El correo ya está registrado.");
+
+    // Validar la seguridad de la contraseña (mínimo 6 caracteres, etc.)
+    if (request.Password.Length < 6)
+        return (false, "La contraseña debe tener al menos 6 caracteres.");
+
+    // Hashear la contraseña con BCrypt
+    var hashedPassword = BCrypt.Net.BCrypt.HashPassword(request.Password);
+
+    // Crear nuevo usuario
+    var newUser = new Usuario
+    {
+        Id = Guid.NewGuid(),
+        Email = request.Email,
+        PasswordHash = hashedPassword,
+        Rol = request.Rol ?? "User"
+    };
+
+    // Guardar en la base de datos
+    _context.Usuarios.Add(newUser);
+    await _context.SaveChangesAsync();
+
+    return (true, "Usuario registrado exitosamente.");
+}
+

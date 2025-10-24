@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MediConnectAPI")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0373b80f93c25333191520b0680fd9422e1c6be5")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+717571d5a518d2039f750be936ead4632fc82705")]
 [assembly: System.Reflection.AssemblyProductAttribute("MediConnectAPI")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MediConnectAPI")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

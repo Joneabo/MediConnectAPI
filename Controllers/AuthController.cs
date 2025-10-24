@@ -110,8 +110,7 @@ public class AuthController : ControllerBase
             Role = role.Name
         });
     }
-    
-    [HttpPost("login")]
+        [HttpPost("login")]
 [AllowAnonymous]
 public async Task<ActionResult> Login([FromBody] DTOs.LoginRequest request)
 {
@@ -171,5 +170,7 @@ public async Task<ActionResult> Login([FromBody] DTOs.LoginRequest request)
         }
     });
 }
+
+    
 
 }

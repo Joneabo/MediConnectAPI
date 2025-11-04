@@ -26,7 +26,7 @@ public class AuthController : ControllerBase
     }
 
     // ----------------------
-    // REGISTRO
+    // REGISTRO (público): permite Patient (3) y Doctor (2)
     // ----------------------
     [HttpPost("register")]
     public async Task<ActionResult> Register(DTOs.RegisterRequest request)
@@ -35,18 +35,29 @@ public class AuthController : ControllerBase
         if (await _db.Users.AnyAsync(u => u.Email == request.Email))
             return BadRequest("El correo ya está registrado.");
 
-        // Normalizamos el rol (por default será Patient)
-        var roleName = string.IsNullOrWhiteSpace(request.Role) ? "Patient" : request.Role;
-        roleName = roleName.Trim();
+        // Mapear el código recibido (1=Admin, 2=Doctor, 3=Patient) a nombre de rol
+        var code = request.RoleId ?? 3; // por defecto Patient
+        string? roleName = code switch
+        {
+            1 => "Admin",
+            2 => "Doctor",
+            3 => "Patient",
+            _ => null
+        };
 
-        // Buscar rol en la BD
-        var role = await _db.Roles.FirstOrDefaultAsync(r => r.Name == roleName);
-        if (role == null)
-            return BadRequest("Rol inválido.");
+        if (roleName is null)
+            return BadRequest("RoleId inválido. Use 1=Admin, 2=Doctor, 3=Patient.");
 
-        // Si intenta crear un Doctor o Admin desde aquí sin ser admin, lo bloqueamos
-        if (roleName != "Patient")
-            return Forbid("Solo un administrador puede crear usuarios de tipo Doctor o Admin.");
+        // En el endpoint público no permitimos crear Admin
+        if (roleName == "Admin")
+            return Forbid("Solo un administrador puede crear usuarios de tipo Admin.");
+
+        // Resolver el Id real por nombre para no depender de IDs de BD
+        var roleId = await _db.Roles.Where(r => r.Name == roleName).Select(r => r.Id).FirstOrDefaultAsync();
+        if (roleId == 0)
+            return StatusCode(500, $"No existe el rol '{roleName}' en la base de datos.");
+
+        var role = await _db.Roles.FindAsync(roleId);
 
         // Crear el usuario
         var user = new User
@@ -56,7 +67,7 @@ public class AuthController : ControllerBase
             Email     = request.Email,
             Phone     = request.Phone,
             Password  = BCrypt.Net.BCrypt.HashPassword(request.Password),
-            RoleId    = role.Id
+            RoleId    = roleId
         };
 
         _db.Users.Add(user);
@@ -83,10 +94,25 @@ public class AuthController : ControllerBase
         if (await _db.Users.AnyAsync(u => u.Email == request.Email))
             return BadRequest("El correo ya está registrado.");
 
-        // Rol válido
-        var role = await _db.Roles.FirstOrDefaultAsync(r => r.Name == request.Role);
-        if (role == null)
-            return BadRequest("Rol inválido.");
+        if (request.RoleId is null)
+            return BadRequest("Debe especificar RoleId (1=Admin, 2=Doctor, 3=Patient).");
+
+        // Mapear el código a nombre y resolver Id real por nombre
+        string? nameFromCode = request.RoleId switch
+        {
+            1 => "Admin",
+            2 => "Doctor",
+            3 => "Patient",
+            _ => null
+        };
+        if (nameFromCode is null)
+            return BadRequest("RoleId inválido. Use 1=Admin, 2=Doctor, 3=Patient.");
+
+        var roleId = await _db.Roles.Where(r => r.Name == nameFromCode).Select(r => r.Id).FirstOrDefaultAsync();
+        if (roleId == 0)
+            return StatusCode(500, $"No existe el rol '{nameFromCode}' en la base de datos.");
+
+        var role = await _db.Roles.FindAsync(roleId);
 
         var user = new User
         {
@@ -95,7 +121,7 @@ public class AuthController : ControllerBase
             Email = request.Email,
             Phone = request.Phone,
             Password = BCrypt.Net.BCrypt.HashPassword(request.Password),
-            RoleId = role.Id
+            RoleId = role!.Id
         };
 
         _db.Users.Add(user);
@@ -107,7 +133,7 @@ public class AuthController : ControllerBase
             user.FirstName,
             user.LastName,
             user.Email,
-            Role = role.Name
+            Role = role!.Name
         });
     }
         [HttpPost("login")]

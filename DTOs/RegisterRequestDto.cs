@@ -8,6 +8,7 @@ public class RegisterRequest
     public string? Phone    { get; set; }
     public string Password  { get; set; } = null!;
 
-    // Por defecto paciente, pero el admin puede enviar Doctor/Admin
-    public string Role { get; set; } = "Patient";  
+    // Nuevo: enviar el Id del rol (1=Admin, 2=Doctor, 3=Patient)
+    // Para el endpoint público (register) se ignora cualquier valor que no sea Patient.
+    public int? RoleId { get; set; }
 }

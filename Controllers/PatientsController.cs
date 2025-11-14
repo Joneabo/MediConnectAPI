@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MediConnectAPI.Data;
 using MediConnectAPI.DTOs;
+using MediConnectAPI.Models;
 
 namespace MediConnectAPI.Controllers;
 
@@ -12,6 +13,62 @@ public class PatientsController : ControllerBase
 {
     private readonly MediConnectContext _db;
     public PatientsController(MediConnectContext db) => _db = db;
+
+    // Admin can create/link a Patient profile for a user
+    [Authorize(Roles = "Admin")]
+    [HttpPost]
+    public async Task<ActionResult> Create([FromBody] CreatePatientRequest req)
+    {
+        var user = await _db.Users.FindAsync(req.UserId);
+        if (user == null) return BadRequest("Usuario no existe.");
+
+        var exists = await _db.Patients.AnyAsync(p => p.UserId == req.UserId);
+        if (exists) return BadRequest("El usuario ya tiene perfil de paciente.");
+
+        var patient = new Patient
+        {
+            UserId = req.UserId,
+            BirthDate = req.BirthDate,
+            Gender = req.Gender,
+            EmergencyContact = req.EmergencyContact
+        };
+
+        _db.Patients.Add(patient);
+        await _db.SaveChangesAsync();
+
+        return CreatedAtAction(nameof(GetById), new { id = patient.Id }, new PatientDto
+        {
+            Id = patient.Id,
+            FullName = user.FirstName + " " + user.LastName,
+            Email = user.Email,
+            BirthDate = patient.BirthDate,
+            Gender = patient.Gender,
+            EmergencyContact = patient.EmergencyContact
+        });
+    }
+
+    // Logged-in Patient can fetch their own profile (to learn PatientId)
+    [Authorize(Roles = "Patient")]
+    [HttpGet("me")]
+    public async Task<ActionResult<PatientDto>> GetMe()
+    {
+        var userId = int.Parse(User.Claims.First(c => c.Type == "userId").Value);
+        var patient = await _db.Patients.Include(p => p.User)
+            .Where(p => p.UserId == userId)
+            .Select(p => new PatientDto
+            {
+                Id = p.Id,
+                FullName = p.User.FirstName + " " + p.User.LastName,
+                Email = p.User.Email,
+                BirthDate = p.BirthDate,
+                Gender = p.Gender,
+                EmergencyContact = p.EmergencyContact
+            })
+            .FirstOrDefaultAsync();
+
+        if (patient == null) return NotFound("Tu usuario no tiene perfil de paciente.");
+        return Ok(patient);
+    }
 
     // Solo Admin puede listar todos
     [Authorize(Roles = "Admin")]

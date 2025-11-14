@@ -4,17 +4,23 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using MediConnectAPI.Models;
+using System.Security.Claims;
 
 
 var builder = WebApplication.CreateBuilder(args);
 
-// DB Context (lee la cadena de ConnectionStrings:DefaultConnection desde User Secrets)
-builder.Services.AddDbContext<MediConnectContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"),
-            sqlOptions => sqlOptions.EnableRetryOnFailure()));
-    
+// DB Context: prefer DevConnection in Development, fallback to DefaultConnection
+var connectionString = builder.Environment.IsDevelopment()
+    ? (builder.Configuration.GetConnectionString("DevConnection")
+        ?? builder.Configuration.GetConnectionString("DefaultConnection"))
+    : builder.Configuration.GetConnectionString("DefaultConnection");
 
-Console.WriteLine("Connection String: " + builder.Configuration.GetConnectionString("DefaultConnection"));
+builder.Services.AddDbContext<MediConnectContext>(options =>
+    options.UseSqlServer(connectionString,
+            sqlOptions => sqlOptions.EnableRetryOnFailure()));
+
+
+Console.WriteLine("Connection String: " + connectionString);
 
 
 builder.Services.AddControllers();
@@ -40,7 +46,9 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = jwtSettings["Issuer"],
         ValidAudience = jwtSettings["Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(key)
+        IssuerSigningKey = new SymmetricSecurityKey(key),
+        RoleClaimType = ClaimTypes.Role,
+        NameClaimType = "sub"
     };
 });
 
@@ -67,33 +75,41 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-using (var scope = app.Services.CreateScope())
+if (app.Environment.IsDevelopment())
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<MediConnectContext>();
-    await db.Database.MigrateAsync();
-
-    if (!await db.Roles.AnyAsync())
+    try
     {
-        db.Roles.AddRange(
-            new Role { Name = "Admin" },
-            new Role { Name = "Doctor" },
-            new Role { Name = "Patient" }
-        );
-        await db.SaveChangesAsync();
-    }
+        await db.Database.MigrateAsync();
 
-    if (!await db.Users.AnyAsync(u => u.Email == "admin@mediconnect.com"))
-    {
-        var adminRoleId = await db.Roles.Where(r => r.Name == "Admin").Select(r => r.Id).FirstAsync();
-        db.Users.Add(new User
+        if (!await db.Roles.AnyAsync())
         {
-            FirstName = "Admin",
-            LastName  = "MediConnect",
-            Email     = "admin@mediconnect.com",
-            Password  = BCrypt.Net.BCrypt.HashPassword("Admin123!"),
-            RoleId    = adminRoleId
-        });
-        await db.SaveChangesAsync();
+            db.Roles.AddRange(
+                new Role { Name = "Admin" },
+                new Role { Name = "Doctor" },
+                new Role { Name = "Patient" }
+            );
+            await db.SaveChangesAsync();
+        }
+
+        if (!await db.Users.AnyAsync(u => u.Email == "admin@mediconnect.com"))
+        {
+            var adminRoleId = await db.Roles.Where(r => r.Name == "Admin").Select(r => r.Id).FirstAsync();
+            db.Users.Add(new User
+            {
+                FirstName = "Admin",
+                LastName  = "MediConnect",
+                Email     = "admin@mediconnect.com",
+                Password  = BCrypt.Net.BCrypt.HashPassword("Admin123!"),
+                RoleId    = adminRoleId
+            });
+            await db.SaveChangesAsync();
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Warning: DB migration/seeding failed: {ex.Message}");
     }
 }
 

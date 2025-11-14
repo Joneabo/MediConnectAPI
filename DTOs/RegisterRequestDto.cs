@@ -11,4 +11,13 @@ public class RegisterRequest
     // Nuevo: enviar el Id del rol (1=Admin, 2=Doctor, 3=Patient)
     // Para el endpoint público (register) se ignora cualquier valor que no sea Patient.
     public int? RoleId { get; set; }
+
+    // Datos opcionales para paciente
+    public DateTime? BirthDate { get; set; }
+    public string? Gender { get; set; }
+    public string? EmergencyContact { get; set; }
+
+    // Datos opcionales para doctor (requeridos cuando RoleId = 2)
+    public string? LicenseNumber { get; set; }
+    public int? SpecialtyId { get; set; }
 }

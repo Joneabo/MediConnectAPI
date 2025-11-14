@@ -52,6 +52,19 @@ public class AuthController : ControllerBase
         if (roleName == "Admin")
             return Forbid("Solo un administrador puede crear usuarios de tipo Admin.");
 
+        // Validaciones adicionales para doctores
+        if (roleName == "Doctor")
+        {
+            if (string.IsNullOrWhiteSpace(request.LicenseNumber))
+                return BadRequest("LicenseNumber es obligatorio para doctores.");
+            if (request.SpecialtyId is null)
+                return BadRequest("Debe especificar SpecialtyId para doctores.");
+
+            var specialtyExists = await _db.Specialties.AnyAsync(s => s.Id == request.SpecialtyId.Value);
+            if (!specialtyExists)
+                return BadRequest("La especialidad indicada no existe.");
+        }
+
         // Resolver el Id real por nombre para no depender de IDs de BD
         var roleId = await _db.Roles.Where(r => r.Name == roleName).Select(r => r.Id).FirstOrDefaultAsync();
         if (roleId == 0)
@@ -72,6 +85,36 @@ public class AuthController : ControllerBase
 
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
+
+        if (role.Name == "Patient")
+        {
+            var hasPatient = await _db.Patients.AnyAsync(p => p.UserId == user.Id);
+            if (!hasPatient)
+            {
+                _db.Patients.Add(new Patient
+                {
+                    UserId = user.Id,
+                    BirthDate = request.BirthDate ?? DateTime.UtcNow.Date,
+                    Gender = request.Gender,
+                    EmergencyContact = request.EmergencyContact
+                });
+                await _db.SaveChangesAsync();
+            }
+        }
+        else if (role.Name == "Doctor")
+        {
+            var hasDoctor = await _db.Doctors.AnyAsync(d => d.UserId == user.Id);
+            if (!hasDoctor)
+            {
+                _db.Doctors.Add(new Doctor
+                {
+                    UserId = user.Id,
+                    LicenseNumber = request.LicenseNumber!,
+                    SpecialtyId = request.SpecialtyId!.Value
+                });
+                await _db.SaveChangesAsync();
+            }
+        }
 
         return CreatedAtAction(nameof(Register), new
         {
@@ -114,6 +157,17 @@ public class AuthController : ControllerBase
 
         var role = await _db.Roles.FindAsync(roleId);
 
+        if (nameFromCode == "Doctor")
+        {
+            if (string.IsNullOrWhiteSpace(request.LicenseNumber))
+                return BadRequest("LicenseNumber es obligatorio para doctores.");
+            if (request.SpecialtyId is null)
+                return BadRequest("Debe especificar SpecialtyId para doctores.");
+            var specialtyExists = await _db.Specialties.AnyAsync(s => s.Id == request.SpecialtyId.Value);
+            if (!specialtyExists)
+                return BadRequest("La especialidad indicada no existe.");
+        }
+
         var user = new User
         {
             FirstName = request.FirstName,
@@ -126,6 +180,36 @@ public class AuthController : ControllerBase
 
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
+
+        if (role.Name == "Patient")
+        {
+            var hasPatient = await _db.Patients.AnyAsync(p => p.UserId == user.Id);
+            if (!hasPatient)
+            {
+                _db.Patients.Add(new Patient
+                {
+                    UserId = user.Id,
+                    BirthDate = request.BirthDate ?? DateTime.UtcNow.Date,
+                    Gender = request.Gender,
+                    EmergencyContact = request.EmergencyContact
+                });
+                await _db.SaveChangesAsync();
+            }
+        }
+        else if (role.Name == "Doctor")
+        {
+            var hasDoctor = await _db.Doctors.AnyAsync(d => d.UserId == user.Id);
+            if (!hasDoctor)
+            {
+                _db.Doctors.Add(new Doctor
+                {
+                    UserId = user.Id,
+                    LicenseNumber = request.LicenseNumber!,
+                    SpecialtyId = request.SpecialtyId!.Value
+                });
+                await _db.SaveChangesAsync();
+            }
+        }
 
         return CreatedAtAction(nameof(RegisterByAdmin), new
         {
@@ -158,6 +242,8 @@ public async Task<ActionResult> Login([FromBody] DTOs.LoginRequest request)
     {
         new Claim("userId", user.Id.ToString()),
         new Claim("role",   user.Role.Name),
+        // Also emit standard role claim for compatibility with default RoleClaimType
+        new Claim(ClaimTypes.Role, user.Role.Name),
         new Claim(JwtRegisteredClaimNames.Sub, user.Email),
         new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
     };

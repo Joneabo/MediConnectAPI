@@ -1,10 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
 using BCrypt.Net;
 using MediConnectAPI.Data;
 using MediConnectAPI.Models;
@@ -220,68 +216,44 @@ public class AuthController : ControllerBase
             Role = role!.Name
         });
     }
-        [HttpPost("login")]
-[AllowAnonymous]
-public async Task<ActionResult> Login([FromBody] DTOs.LoginRequest request)
-{
-    // 1. Find the user (also load the Role)
-    var user = await _db.Users
-        .Include(u => u.Role)
-        .FirstOrDefaultAsync(u => u.Email == request.Email);
-
-    if (user == null)
-        return Unauthorized("Credenciales inválidas.");
-
-    // 2. Verify password with BCrypt
-    bool passwordOk = BCrypt.Net.BCrypt.Verify(request.Password, user.Password);
-    if (!passwordOk)
-        return Unauthorized("Credenciales inválidas.");
-
-    // 3. Build token claims
-    var claims = new[]
+    [HttpPost("login")]
+    [AllowAnonymous]
+    public async Task<ActionResult> Login([FromBody] DTOs.LoginRequest request)
     {
-        new Claim("userId", user.Id.ToString()),
-        new Claim("role",   user.Role.Name),
-        // Also emit standard role claim for compatibility with default RoleClaimType
-        new Claim(ClaimTypes.Role, user.Role.Name),
-        new Claim(JwtRegisteredClaimNames.Sub, user.Email),
-        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-    };
+        var user = await _db.Users
+            .Include(u => u.Role)
+            .FirstOrDefaultAsync(u => u.Email == request.Email);
 
-    // 4. Build signing credentials
-    var jwtSection   = _config.GetSection("Jwt");
-    var keyBytes     = Encoding.UTF8.GetBytes(jwtSection["Key"]!);
-    var creds        = new SigningCredentials(
-        new SymmetricSecurityKey(keyBytes),
-        SecurityAlgorithms.HmacSha256
-    );
+        if (user == null)
+            return Unauthorized("Credenciales inválidas.");
 
-    // 5. Create token
-    var token = new JwtSecurityToken(
-        issuer: jwtSection["Issuer"],
-        audience: jwtSection["Audience"],
-        claims: claims,
-        expires: DateTime.UtcNow.AddHours(6),
-        signingCredentials: creds
-    );
+        bool passwordOk = BCrypt.Net.BCrypt.Verify(request.Password, user.Password);
+        if (!passwordOk)
+            return Unauthorized("Credenciales inválidas.");
 
-    var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
-
-    // 6. Return token + basic profile info
-    return Ok(new
-    {
-        token = tokenString,
-        expiresAt = token.ValidTo,
-        user = new
+        return Ok(new
         {
-            id = user.Id,
-            firstName = user.FirstName,
-            lastName = user.LastName,
-            email = user.Email,
-            role = user.Role.Name
-        }
-    });
-}
+            message = "Autenticación exitosa. Envía los encabezados X-User-Id y X-User-Role en tus solicitudes protegidas.",
+            headers = new
+            {
+                userIdHeader = "X-User-Id",
+                roleHeader = "X-User-Role"
+            },
+            values = new
+            {
+                userId = user.Id,
+                role = user.Role.Name
+            },
+            user = new
+            {
+                id = user.Id,
+                firstName = user.FirstName,
+                lastName = user.LastName,
+                email = user.Email,
+                role = user.Role.Name
+            }
+        });
+    }
 
     
 
